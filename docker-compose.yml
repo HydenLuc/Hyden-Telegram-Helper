@@ -1,0 +1,125 @@
+# TGhelper：四个模块各自独立容器（2026-08-12 从单容器拆分）
+#
+# 为什么拆：原来 dashboard/downloader/unzipper/mover 挤在一个容器（downloader 和
+# unzipper 还共享同一个事件循环），后果是①改前端一行也要停整条流水线、打断正在下的文件；
+# ②下载忙时 dashboard 被拖到没响应（实测队列 2 万时网页直接打不开）。
+#
+# 拆完之后：
+#   docker compose up -d --build --no-deps dashboard   # 改网页/API，下载完全不受影响
+#   （--no-deps 是双保险：即使以后有人加回 depends_on 也不会连累别的服务）
+#   docker compose restart unzipper          # 解压卡住，单独重启
+#
+# 四个服务共用同一个镜像（只是启动命令不同），所以 build 一次即可，不会变慢。
+# 服务间靠 docker 内部 DNS 用服务名互相调用（*_HOST 环境变量）。
+
+x-common: &common
+  build: .
+  image: tghelper:latest          # 四个服务共用一个镜像，避免重复构建
+  # 必须先 cp .env.example .env。用短写法：长写法（path/required）要 Compose ≥ 2.24，
+  # 群晖等 NAS 自带的老版本 Compose 直接解析报错（2026-11-11 改）。
+  env_file: .env
+  environment: &common-env
+    DATA_ROOT: /data              # 容器内固定；宿主机放哪由 volumes 决定
+    LISTEN_HOST: 0.0.0.0          # 容器内必须 0.0.0.0，否则同网络别的容器连不上
+    # 容器内端口固定（覆盖 .env 同名变量，防止映射断裂）；宿主端口被占用 HOST_*_PORT 换
+    DASHBOARD_PORT: 8090
+    WEB_PORT: 8091
+    MOVER_PORT: 8092
+    UNZIPPER_PORT: 8093
+    # 服务间寻址：用 compose 服务名（docker 内部 DNS）。单进程跑时默认 127.0.0.1
+    WEB_HOST: downloader
+    MOVER_HOST: mover
+    UNZIPPER_HOST: unzipper
+    CONTROL_HOST: control
+    CONTROL_PORT: 8094
+    # 数据盘守卫（外接盘部署强烈建议开）：解开下一行，并在数据盘根目录 `touch .tgdrive_ok`。
+    # 盘没挂上时（bind 到空目录）容器拒绝启动，避免下载静默写进宿主根文件系统。
+    # DATA_MARKER: /data/.tgdrive_ok
+  volumes:
+    # ★ 宿主机数据根目录（.env 里设 HOST_DATA_ROOT）；四个服务都要挂，因为
+    #   downloader 写下载、mover 搬运、unzipper 解压、dashboard 读磁盘用量
+    - ${HOST_DATA_ROOT:-./data}:/data
+    # 运行时状态（Telegram session / 任务队列 / 日志），删容器不丢登录
+    - ./state:/state
+  restart: unless-stopped
+  # 健康检查（2026-11-13）：调本服务的 /api/health，`docker ps` 里显示 healthy / unhealthy。
+  # Docker 自己不会重启 unhealthy 的容器（restart 策略只管进程退出），
+  # 所以由 control 服务每分钟查一次、把 unhealthy 的重启（control/autoheal.py；.env 里 AUTOHEAL=false 关）。
+  # 删掉 control 的话就只剩「显示」。
+  healthcheck:
+    test: ["CMD", "python", "/app/docker/healthcheck.py"]
+    interval: 60s
+    timeout: 15s
+    retries: 3
+    start_period: 120s
+  # 容器里放 tini 当 1 号进程，负责把 docker stop 的 SIGTERM 转给 Python。
+  # Python 当 1 号进程时，没装处理器的信号会被直接忽略（2026-11-11 加；代码里各模块也装了处理器，这是第二层）
+  init: true
+
+services:
+  # 控制台：改前端只需重建这一个
+  dashboard:
+    <<: *common
+    container_name: tghelper-dashboard
+    environment:
+      <<: *common-env
+      SERVICE_NAME: dashboard   # 日志写 /state/logs/dashboard.log，各服务分开避免 rotate 打架
+    command: ["python", "-m", "dashboard.main"]
+    ports:
+      - "127.0.0.1:${HOST_DASHBOARD_PORT:-8090}:8090"
+    # ⚠️ 故意不写 depends_on：它会把三个模块拉进 `up --build dashboard` 的重建范围，
+    #    共用镜像一变就全被重建，拆分的意义（改前端不打断下载）当场作废。
+    #    dashboard 本来就容忍模块离线（_fetch_module 有失败计数），不需要启动顺序保证。
+
+  # 下载器：持有 Telegram session，改动代价最大，尽量别重启
+  downloader:
+    <<: *common
+    container_name: tghelper-downloader
+    environment:
+      <<: *common-env
+      SERVICE_NAME: downloader   # 日志写 /state/logs/downloader.log，各服务分开避免 rotate 打架
+    command: ["python", "/app/bot.py"]
+    ports:
+      - "127.0.0.1:${HOST_WEB_PORT:-8091}:8091"   # 首次登录在这个页面
+
+  # 搬运：把下好的压缩包原子搬到 unzipper 的监视目录
+  mover:
+    <<: *common
+    container_name: tghelper-mover
+    environment:
+      <<: *common-env
+      SERVICE_NAME: mover   # 日志写 /state/logs/mover.log，各服务分开避免 rotate 打架
+    command: ["python", "-m", "mover.main"]
+    ports:
+      - "127.0.0.1:${HOST_MOVER_PORT:-8092}:8092"
+
+  # 解压：watchdog 盯 WATCH_PATH，跟 downloader 只有文件系统耦合
+  unzipper:
+    <<: *common
+    container_name: tghelper-unzipper
+    environment:
+      <<: *common-env
+      SERVICE_NAME: unzipper   # 日志写 /state/logs/unzipper.log，各服务分开避免 rotate 打架
+    command: ["python", "-m", "unzipper.main"]
+    ports:
+      - "127.0.0.1:${HOST_UNZIPPER_PORT:-8093}:8093"
+
+  # 控制服务：dashboard「服务启停」面板和下载器页「⏹ 停止」按钮都靠它（2026-11-11 加）。
+  #
+  # ⚠️ 只有它挂了 docker.sock —— 拿到 docker.sock 等于拿到宿主机 root，
+  #    所以把这份权限关在这个只会「查看 / 启动 / 停止 / 重启本项目这几个容器」的小服务里，
+  #    dashboard 本身不碰 docker.sock（见 control/docker_api.py 开头）。
+  # ⚠️ 故意不映射任何端口：只在 compose 内部网络里给 dashboard / 下载器调，宿主机和局域网都访问不到。
+  # 它还负责「容器卡死自动重启」（见上面 healthcheck 的说明）。
+  # 不想要网页启停功能的话，整段删掉即可，其余服务照常运行（面板会显示「连不上控制服务」，卡死也不会自动重启）。
+  control:
+    <<: *common
+    container_name: tghelper-control
+    environment:
+      <<: *common-env
+      SERVICE_NAME: control
+    command: ["python", "-m", "control.main"]
+    volumes:
+      - ${HOST_DATA_ROOT:-./data}:/data      # 数据盘守卫（DATA_MARKER）要看得到 /data
+      - ./state:/state                       # 只用来写日志
+      - /var/run/docker.sock:/var/run/docker.sock

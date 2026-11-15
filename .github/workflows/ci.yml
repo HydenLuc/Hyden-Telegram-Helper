@@ -1,0 +1,77 @@
+# CI（2026-11-13，开源准备 ⑧）
+#
+# · Linux 单测：每次 push / PR 都跑（Python 3.10 最低支持版本 + 3.12 推荐版本）
+# · macOS 单测、Docker 镜像构建：公开仓库自动跑；私有 fork 里手动触发（Actions 页面 → Run workflow），
+#   因为私有仓库的 macOS 分钟数按 10 倍计。
+# · Windows：原生不支持（README 写明只用 Docker Desktop），不跑单测。
+# · e2e 标记的测试要真服务，CI 里跳过。
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: 系统解压工具
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends p7zip-full
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q -m "not e2e"
+      - name: shell 脚本语法
+        run: bash -n start.sh && bash -n stop.sh && sh -n docker/entrypoint.sh
+
+  test-macos:
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - run: brew install p7zip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest -q -m "not e2e"
+
+  docker-build:
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: 构建镜像
+        run: docker build -t tghelper:ci .
+      - name: 镜像冒烟测试（不登录 Telegram，只起搬运服务看健康检查）
+        run: |
+          mkdir -p /tmp/ci/state /tmp/ci/data
+          printf 'API_ID=1\nAPI_HASH=x\nPHONE=+10000000000\nSERVICE_NAME=mover\n' > /tmp/ci/env
+          docker run -d --name ci-mover --env-file /tmp/ci/env -v /tmp/ci/state:/state -v /tmp/ci/data:/data \
+            tghelper:ci python -m mover.main
+          for i in $(seq 1 20); do
+            docker exec ci-mover python /app/docker/healthcheck.py && { echo healthy; exit 0; }
+            sleep 2
+          done
+          docker logs ci-mover
+          exit 1
+      - name: compose 配置能解析
+        run: cp .env.example .env && docker compose config -q

@@ -1,0 +1,13 @@
+
+# ── 换行符（2026-11-11）────────────────────────────────────────────────────
+# Windows 上 git 默认开 autocrlf，clone 下来的文本文件会变成 CRLF。
+# shell 脚本一旦是 CRLF，docker/entrypoint.sh 在容器里就执行不了，容器直接起不来。
+# 所以凡是要在 Linux / 容器里跑的文件强制 LF，只有 Windows 自己用的脚本用 CRLF。
+*.sh        text eol=lf
+*.py        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+Dockerfile  text eol=lf
+.env.example text eol=lf
+*.bat       text eol=crlf
+*.ps1       text eol=crlf

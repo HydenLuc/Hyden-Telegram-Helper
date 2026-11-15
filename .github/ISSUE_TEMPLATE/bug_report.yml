@@ -1,0 +1,43 @@
+name: Bug report / 问题反馈
+description: Something doesn't work as expected / 有功能不正常
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ Don't paste your `.env`, API hash, phone number, session files, or the names of channels / files you download.
+        ⚠️ 不要贴 `.env`、API hash、手机号、登录文件，也不要贴你下载的频道名、文件名。
+        Security problems → use the Security tab instead / 安全问题请走 Security 页私下报告。
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: How do you run it? / 部署方式
+      options:
+        - Docker (Linux)
+        - Docker Desktop (Windows)
+        - Docker Desktop (macOS)
+        - Native Linux / 原生 Linux
+        - Native macOS / 原生 macOS
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit / 版本或 commit
+      placeholder: v1.0.0
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect? / 发生了什么，你期望怎样？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 复现步骤
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / 日志
+      description: "Docker: `docker compose logs --tail 100 <service>`; native: `state/logs/<service>.log`. Remove file and channel names. / 删掉里面的文件名和频道名。"
+      render: text

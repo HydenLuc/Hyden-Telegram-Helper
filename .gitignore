@@ -1,0 +1,72 @@
+# 环境配置（含敏感信息）
+.env
+
+# Telegram session
+*.session
+*.session-journal
+
+# 下载目录
+downloads/
+
+# 运行时状态文件
+completed.json
+watched_chats.json
+mover_state.json
+pending_tasks.json
+grouped_state.json
+duplicate_queue.json
+content_index.json
+history_jobs.json
+# 大状态字典的 SQLite 库（2026-08-19 起）。WAL/SHM 是它的伴生文件，一并忽略。
+state.db
+state.db-wal
+state.db-shm
+
+# 进程管理（PID 文件 / 日志）
+.run/
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# 临时文件（atomic_io 写入失败时可能残留）
+*.tmp
+dist/
+build/
+.eggs/
+
+# 编辑器 / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+unzipper_history.json
+downloader_settings.json
+unzipper_settings.json
+passwords.json
+
+# Docker 运行时挂载目录(session/队列状态/下载数据,绝不入库)
+state/
+data/
+
+# 部署主机专属 compose 覆盖（各机不同，不入库）
+docker-compose.override.yml
+
+
+# tools/backup.py 的默认输出位置；加密/明文都不入 git
+tghelper-backups/
+tghelper-backup-*.tar.gz
+tghelper-backup-*.tar.gz.age
+tghelper-backup-*.tar.gz.enc

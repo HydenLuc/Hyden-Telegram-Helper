@@ -1,0 +1,32 @@
+# Docker Desktop（Windows / macOS）用：把 /state 换成 Docker 自己管的「命名卷」。
+#
+# 为什么：默认 compose 把宿主机的 ./state 目录挂进容器。Docker Desktop 上这个目录要经过
+# 「宿主机 ↔ 虚拟机」的文件共享层，SQLite（登录文件 userbot.session、任务库 state.db）
+# 的锁在这一层上不可靠，偶尔会报 database is locked 或者写坏。命名卷放在 Docker 的虚拟机里，没有这个问题。
+#
+# 用法：把这个文件复制到项目根目录、改名成 docker-compose.override.yml，docker compose 会自动叠加。
+#   cp deploy/docker-desktop/docker-compose.desktop.yml docker-compose.override.yml
+#   docker compose up -d
+#
+# 代价：状态文件不在你电脑的文件夹里了，要备份就用自带的备份工具：
+#   docker compose exec dashboard python -m tools.backup
+# 下载数据（/data）不受影响，照样是你在 .env 里 HOST_DATA_ROOT 指定的文件夹。
+
+x-state: &state
+  volumes:
+    - ${HOST_DATA_ROOT:-./data}:/data
+    - tghelper-state:/state
+
+services:
+  dashboard:  *state
+  downloader: *state
+  mover:      *state
+  unzipper:   *state
+  control:
+    volumes:
+      - ${HOST_DATA_ROOT:-./data}:/data
+      - tghelper-state:/state
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  tghelper-state:
