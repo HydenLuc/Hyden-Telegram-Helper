@@ -85,7 +85,7 @@ async def main():
     print(f"│  无进度超时       DOWNLOAD_TIMEOUT      = {config.DOWNLOAD_TIMEOUT}s")
     print(f"│  FloodWait 重试   FLOOD_RETRY_MAX       = {config.FLOOD_RETRY_MAX} 次（指数退避 5/10/20s）")
     print(f"└──────────────────────────────────────────────────────────")
-    _log.info(f"监听 {len(state.watched)} 个聊天 | 命令：监听 / 取消监听 / 监听列表 / 搜索 / ID")
+    _log.info(f"监听 {len(state.watched)} 个聊天 | 命令：监听 / 取消监听 / 监听列表 / 搜索 / ID / 状态")
 
     # P1-5b: 启动恢复扫描（必须在 client.start 之后，需要 get_messages 重取 file_reference）
     from downloader.download.manager import recover_pending_tasks

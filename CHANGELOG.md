@@ -1,5 +1,18 @@
 # Changelog / 更新日志
 
+## Unreleased
+
+- Paste a Telegram message link (`t.me/<channel>/<id>`, `t.me/c/<id>/<id>`, topic links) into Saved Messages to download that message's media; albums are downloaded whole into one folder.
+  在「我的收藏」里贴 Telegram 消息链接即可下载那条消息的媒体；相册整组下载、放进同一个文件夹。
+- New `状态` (status) command: send it in any chat to get download / pause-switch / disk status.
+  新命令「状态」：在任意聊天里发送，回复下载进度、三个暂停开关和磁盘剩余。
+- Optional delay between starting downloads (`DOWNLOAD_START_INTERVAL` / `DOWNLOAD_START_JITTER`, off by default) to look less like a bot.
+  可选的「下载开始间隔」（默认关闭），降低被判成机器人的风险。
+- Media forwarded into Saved Messages is now filed under the original channel / sender name instead of your own name.
+  转发进收藏的媒体，文件夹按原频道 / 原发送人命名，不再全放在自己名字下面。
+- History downloads keep albums together in one folder.
+  历史下载不再把同一相册拆进多个文件夹。
+
 ## v1.0.0 — 2026-11-14
 
 First public release. / 第一个公开版本。

@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+import random
 import time
 import asyncio
 from datetime import datetime
@@ -347,6 +348,34 @@ async def _release_connections(n: int, source: str = "realtime"):
         state._conn_gate.notify_all()
 
 
+# ── 防封号：开始下载的全局间隔 ─────────────────────────────────────────────
+# 下一个「允许开始」的时刻（time.monotonic 口径）。
+_next_start_at = 0.0
+
+
+async def _throttle_start(clock=time.monotonic, sleep=asyncio.sleep) -> None:
+    """全局节流：两次「开始下载一个新文件」之间至少隔 DOWNLOAD_START_INTERVAL 秒。
+
+    - 间隔 <= 0 直接返回（默认，行为和没有这个功能时完全一样）。
+    - 先**预占**自己的时间槽再 sleep：读 `_next_start_at` 和写回之间没有 await，
+      单线程事件循环下不会被别的协程插进来，所以不需要锁，并发等待者自然排成队。
+    - ⚠️ 只能在 `_acquire_connections` 之前调：等待期间不占连接预算，
+      而且此时还没建 `_stall_watchdog`（它只盯 dl_task，见 download_one 的 Phase 2），
+      不会被判成卡死。别挪进下载 attempt 里。
+    - 被取消的等待者留下的槽位不回收，只是多空一个间隔，不影响正确性。
+    """
+    global _next_start_at
+    interval = max(0.0, config.DOWNLOAD_START_INTERVAL)
+    if interval <= 0:
+        return
+    jitter = max(0.0, config.DOWNLOAD_START_JITTER)
+    now = clock()
+    start_at = max(now, _next_start_at)
+    _next_start_at = start_at + interval + (random.uniform(0, jitter) if jitter else 0.0)
+    if start_at > now:
+        await sleep(start_at - now)
+
+
 # 下载结束的原因 → 要不要把 .partN 一起删掉。
 #
 # 🔴 这条规则 2026-09-17 之前散在 6 个 if 里，其中两个是错的，后果是大文件
@@ -583,6 +612,8 @@ async def download_one(task_id: str, message, file_path: Path, label: str,
         # ── Phase 1: wait for connection budget ───────────────────────────────
         is_small_file = (file_size or 0) < config.SMALL_FILE_THRESHOLD_MB * 1024 * 1024
         try:
+            # 防封号节流放在拿连接之前：等待期间不占预算，也还没有看门狗（见 _throttle_start）
+            await _throttle_start()
             await _acquire_connections(n_conns, is_small_file=is_small_file, source=source)
         except asyncio.CancelledError:
             _finish(task_id, "error", "已手动取消", run_id=run_id)

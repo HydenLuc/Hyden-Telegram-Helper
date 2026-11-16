@@ -23,6 +23,8 @@ cp .env.example .env
 | `API_KEY` | `""` | 否 | Downloader API 认证密钥（为空则不验证） |
 | `DOWNLOAD_TIMEOUT` | `180` | 否 | 连续多少秒零进度就判卡死、取消。🔴 **别设回 60**：Telethon 的 `flood_sleep_threshold` 默认也是 60，它遇到 ≤60s 的 FloodWait 会自己 sleep 重试（零进度），两个 60 撞车 → 大文件被限流就误杀（2026-09-17 查明，363 次超时几乎全是 2.5~3.5GB 文件）。必须 ≥ 2×`FLOOD_SLEEP_THRESHOLD` |
 | `FLOOD_SLEEP_THRESHOLD` | `60` | 否 | 交给 Telethon 内部 sleep 重试的 FloodWait 上限（秒）。超过就抛给我们自己处理（会设 `flood_until` 让看门狗豁免）。⚠️ 必须**明显小于** `DOWNLOAD_TIMEOUT` |
+| `DOWNLOAD_START_INTERVAL` | `0` | 否 | 防封号：全局两次「开始下载一个新文件」之间至少间隔多少秒（浮点，0 = 关闭，负数按 0）。实时下载和历史下载共用；断点续传 / 重试同一任务也走它。等待发生在拿连接**之前**，不占连接预算，也不会被卡死看门狗误判 |
+| `DOWNLOAD_START_JITTER` | `0` | 否 | 在上面的间隔上再随机加 0~N 秒（浮点，负数按 0）。`DOWNLOAD_START_INTERVAL=0` 时整个节流关闭，本项不起作用 |
 | `MAX_TOTAL_CONNECTIONS` | `20` | 否 | 全局最大并发 HTTP 连接数 |
 | `CHUNK_SIZE` | `1048576` | 否 | 分块下载每块大小（字节），必须是 4096 的倍数，上限 1048576（1 MB） |
 | `SMALL_FILE_THRESHOLD_MB` | `5` | 否 | 低于此 MB 阈值的文件视为"小文件"，可用全部连接（连接分级调度）|

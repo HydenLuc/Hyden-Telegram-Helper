@@ -103,7 +103,7 @@ async def main():
     print(f"│  无进度超时       DOWNLOAD_TIMEOUT      = {config.DOWNLOAD_TIMEOUT}s")
     print(f"│  FloodWait 重试   FLOOD_RETRY_MAX       = {config.FLOOD_RETRY_MAX} 次（指数退避 5/10/20s）")
     print(f"└──────────────────────────────────────────────────────────")
-    print(f"监听 {len(state.watched)} 个聊天 | 命令：监听 / 取消监听 / 监听列表 / 搜索 / ID")
+    print(f"监听 {len(state.watched)} 个聊天 | 命令：监听 / 取消监听 / 监听列表 / 搜索 / ID / 状态")
 
     _on = lambda paused: "暂停" if paused else "运行"
     _log.info(f"启动状态（RESTART_MODE={config.RESTART_MODE}）：全局监听{_on(state.monitoring_paused)}、"

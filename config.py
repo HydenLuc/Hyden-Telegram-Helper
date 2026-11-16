@@ -157,6 +157,19 @@ UNZIPPER_SETTINGS_FILE   = STATE_DIR / "unzipper_settings.json"
 # 现在 180 > 60，给 Telethon 的内部重试留足空间；真卡死了 3 分钟也够判定。
 DOWNLOAD_TIMEOUT      = int(os.getenv("DOWNLOAD_TIMEOUT", 180))
 
+# 防封号：全局两次「开始下载一个新文件」之间的最小间隔（秒，浮点）。0 = 关闭（默认）。
+# 实时下载和历史下载共用这一个节流；JITTER 在间隔上再随机加 0~JITTER 秒。负数按 0 处理。
+# 注意：间隔为 0 时整个节流关闭，此时 JITTER 不起作用。
+def _nonneg_float(name: str) -> float:
+    try:
+        return max(0.0, float(os.getenv(name, "0")))
+    except ValueError:
+        return 0.0
+
+
+DOWNLOAD_START_INTERVAL = _nonneg_float("DOWNLOAD_START_INTERVAL")
+DOWNLOAD_START_JITTER   = _nonneg_float("DOWNLOAD_START_JITTER")
+
 # Telethon 内部自动 sleep 重试的上限。超过这个秒数的 FloodWait 会抛给我们自己处理
 # （走 download_one 的 FloodWait 分支，会设 flood_until 让看门狗豁免）。
 # ⚠️ 必须**明显小于** DOWNLOAD_TIMEOUT，否则又回到「两个 60 撞车」那种局面。

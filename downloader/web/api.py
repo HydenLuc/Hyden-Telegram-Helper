@@ -655,19 +655,51 @@ async def _start_api_download(msg, chat_id: int, message_id: int, *,
     except Exception:
         source_name = f"chat_{chat_id}"
 
-    raw_text    = (msg.message or "").strip()
-    suffix      = sanitize(raw_text[:10], "未命名文件夹") if raw_text else "未命名文件夹"
-    save_dir    = unique_dir(config.DOWNLOAD_DIR / source_name / f"{ts}_{suffix}")
-    save_dir.mkdir(parents=True, exist_ok=True)
+    # 相册（同 grouped_id）放进同一个文件夹：和实时下载共用 state._group_dirs（5 分钟 TTL）。
+    # 以前历史下载 / 粘贴链接每条消息各建一个目录，相册会被拆开（2026-11-15）。
+    # 从这里到登记缓存之间不能有 await，否则同组两条并发进来会各建一个目录。
+    # 只管 source="history"：toast「直接下载」/ 手动 /api/download 照旧孤立目录（docs/md5-dedup-design.md Q2）。
+    now       = time.time()
+    group_key = (f"{chat_id}_{msg.grouped_id}"
+                 if source == "history" and getattr(msg, "grouped_id", None) else None)
+    for k in [k for k, r in state._group_dirs.items() if now - r["ts"] > state.GROUP_DIR_TTL]:
+        del state._group_dirs[k]
+    rec = state._group_dirs.get(group_key) if group_key else None
 
-    if msg.message:
-        (save_dir / "文字信息.txt").write_text(msg.message, encoding="utf-8")
+    if rec:
+        save_dir  = rec["dir"]
+        rec["ts"] = now
+        rec["count"] += 1
+        file_path = unique_file(save_dir / media_filename(msg))
+        if msg.message and not (save_dir / "文字信息.txt").exists():
+            (save_dir / "文字信息.txt").write_text(msg.message, encoding="utf-8")
+            rec["no_text"] = False
+        with rec["detail"].open("a", encoding="utf-8") as f:
+            f.write(_format_media_entry(msg, rec["count"], file_path.name) + "\n")
+    else:
+        raw_text    = (msg.message or "").strip()
+        suffix      = sanitize(raw_text[:10], "未命名文件夹") if raw_text else "未命名文件夹"
+        save_dir    = unique_dir(config.DOWNLOAD_DIR / source_name / f"{ts}_{suffix}")
+        save_dir.mkdir(parents=True, exist_ok=True)
 
-    file_path   = unique_file(save_dir / media_filename(msg))
-    detail_path = save_dir / "消息详情.txt"
-    header = _format_details_header(msg)
-    entry  = _format_media_entry(msg, 1, file_path.name)
-    detail_path.write_text(header + "\n" + entry + "\n", encoding="utf-8")
+        if msg.message:
+            (save_dir / "文字信息.txt").write_text(msg.message, encoding="utf-8")
+
+        file_path   = unique_file(save_dir / media_filename(msg))
+        detail_path = save_dir / "消息详情.txt"
+        header = _format_details_header(msg)
+        entry  = _format_media_entry(msg, 1, file_path.name)
+        detail_path.write_text(header + "\n" + entry + "\n", encoding="utf-8")
+        if group_key:
+            state._group_dirs[group_key] = {
+                "dir":       save_dir,
+                "ts":        now,
+                "detail":    detail_path,
+                "count":     1,
+                "max_views": msg.views    or 0,
+                "max_fwds":  msg.forwards or 0,
+                "no_text":   not bool(msg.message),
+            }
 
     if task_id_seq is not None:
         task_id = f"{chat_id}_{message_id}_{task_id_tag}_{task_id_seq}"
