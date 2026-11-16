@@ -1,6 +1,6 @@
 # Hyden TGhelper Contributor License Agreement
 
-Version 1.0 — 2026-11-14
+Version 1.1 — 2026-11-16
 
 Thank you for contributing to Hyden TGhelper (the "Project"), maintained by HydenLuc (the "Maintainer").
 This agreement explains the rights you give the Maintainer for your contributions. Please read it before
@@ -27,6 +27,11 @@ You agree that the Maintainer may license your Contributions, as part of the Pro
 **any license terms**, including the GNU Affero General Public License and proprietary or commercial
 licenses. The Maintainer is not required to use your Contribution, and will continue to make the Project
 available under an open-source license.
+
+## 3a. Successors
+
+The rights You grant under this agreement also benefit the Maintainer's successors and assigns. If the
+Project is transferred to another person or organization, these licenses transfer with it.
 
 ## 4. Patent license
 
@@ -60,6 +65,7 @@ kind.
 
 1. **版权仍归你**，但你授权 HydenLuc 及其发布软件的接收者永久、免费地使用、修改、再发布你的贡献。
 2. **HydenLuc 可以用任何许可证授权你的贡献**，包括 AGPL 和商业授权（本项目是双授权：公开版 AGPL，另有商业授权）。项目会继续以开源许可证提供。
-3. **专利授权**：你的贡献涉及你拥有的专利时，授予使用这些贡献所需的专利许可。
-4. **你保证**：贡献是你自己的作品或你有权提交；雇主等第三方有权利时已获得许可；不含凭证、他人隐私或你无权分享的内容。
-5. 贡献按「原样」提供，不附带担保。
+3. **项目转让时授权一起转过去**：项目将来转给别的个人或组织时，你给出的这些授权随项目一起转让。
+4. **专利授权**：你的贡献涉及你拥有的专利时，授予使用这些贡献所需的专利许可。
+5. **你保证**：贡献是你自己的作品或你有权提交；雇主等第三方有权利时已获得许可；不含凭证、他人隐私或你无权分享的内容。
+6. 贡献按「原样」提供，不附带担保。
