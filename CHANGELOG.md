@@ -12,6 +12,8 @@
   转发进收藏的媒体，文件夹按原频道 / 原发送人命名，不再全放在自己名字下面。
 - History downloads keep albums together in one folder.
   历史下载不再把同一相册拆进多个文件夹。
+- `tools/backup.py` now also saves `docker-compose.override.yml` (machine-specific; `restore.py` only tells you where it is, it is not copied back automatically).
+  备份也带上 `docker-compose.override.yml`（机器专属，还原时只提示位置，不自动复制回去）。
 
 ## v1.0.0 — 2026-11-14
 

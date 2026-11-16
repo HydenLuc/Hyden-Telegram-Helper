@@ -387,6 +387,12 @@ def main() -> None:
                     restore_file_if_missing(overlay_src, state_dir / ".env",
                                             "state/.env（设置页覆盖层）", args.overwrite)
 
+                # 机器专属的 compose 配置（端口绑定到哪个 IP 等）：换台机器多半不适用，只提示不复制
+                ov_src = stage / "core" / "docker-compose.override.yml"
+                if ov_src.exists():
+                    print("  ○ docker-compose.override.yml：机器专属，不自动还原。"
+                          "原机器重装时手动从备份包的 core/ 里取出，放回项目根目录")
+
                 w_src = stage / "core" / "watched_chats.json"
                 if w_src.exists():
                     restore_watched(w_src, state_dir / "watched_chats.json", args.overwrite)

@@ -58,6 +58,9 @@ BACKUP_ITEMS: list[tuple[str, str, str]] = [
     ("core/.env",                    ".env",                          "core"),
     # Docker 的「设置页覆盖层」：设置页保存的配置写在这里（2026-11-11 起），不备就丢
     ("core/state-overlay.env",       "state/.env",                    "core"),
+    # Docker 部署的机器专属 compose 配置（端口绑定等，不进 git）。曾经被别的机器同步过来的
+    # 同名文件覆盖、只能照文档重写，才加进来。还原时不自动复制（换台机器多半不适用），见 restore.py
+    ("core/docker-compose.override.yml", "docker-compose.override.yml", "core"),
     ("core/watched_chats.json",      "state/watched_chats.json",      "core"),
     # state.db 走 SQLite 在线备份（见 copy_into_stage），产出一个完整的单文件，
     # 所以不再带 -shm / -wal：WAL 里没合并的写入已经包含在快照里了。
@@ -102,6 +105,7 @@ git HEAD : {git_commit}
 包含什么
 --------
 core/            Telegram 登录态、监听列表、主状态库（必须；少了跑不起来）
+                 （Docker 部署还带 docker-compose.override.yml：机器专属，还原时不自动复制）
 feature_state/   完成记录、去重索引、解压密码、搬运状态（功能状态）
 （不再备份 launchd plist：新机器上 python -m tools.autostart on 重新生成）
 env_android/     Android SDK 路径（只有还要编 APK 才用）
