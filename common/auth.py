@@ -64,6 +64,12 @@ def is_cross_site(request: web.Request) -> bool:
     return netloc not in hosts
 
 
+# app[PUBLIC_PAGES_KEY] = {"/"}：这个服务的首页本身不要钥匙（2026-11-17）。
+# 只有页面 HTML 里**不含**钥匙、数据全走 /api/ 的服务才能这样声明（目前只有 dashboard）。
+# downloader / mover / unzipper 的页面会把 API_KEY 直接写进 HTML，绝不能声明。
+PUBLIC_PAGES_KEY: web.AppKey[frozenset] = web.AppKey("tghelper_public_pages", frozenset)
+
+
 @web.middleware
 async def auth_middleware(request: web.Request, handler):
     if (request.path.startswith('/api/') and request.method not in _SAFE_METHODS
@@ -73,7 +79,7 @@ async def auth_middleware(request: web.Request, handler):
         if request.path.startswith('/api/'):
             if not _key_ok(request.headers.get('X-API-Key', '')):
                 return web.json_response({"error": "Unauthorized"}, status=401)
-        elif request.path == '/':
+        elif request.path == '/' and '/' not in request.app.get(PUBLIC_PAGES_KEY, frozenset()):
             key = request.rel_url.query.get('key', '') or request.headers.get('X-API-Key', '')
             if not _key_ok(key):
                 return web.json_response(

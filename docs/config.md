@@ -25,6 +25,7 @@ cp .env.example .env
 | `FLOOD_SLEEP_THRESHOLD` | `60` | 否 | 交给 Telethon 内部 sleep 重试的 FloodWait 上限（秒）。超过就抛给我们自己处理（会设 `flood_until` 让看门狗豁免）。⚠️ 必须**明显小于** `DOWNLOAD_TIMEOUT` |
 | `DOWNLOAD_START_INTERVAL` | `0` | 否 | 防封号：全局两次「开始下载一个新文件」之间至少间隔多少秒（浮点，0 = 关闭，负数按 0）。实时下载和历史下载共用；断点续传 / 重试同一任务也走它。等待发生在拿连接**之前**，不占连接预算，也不会被卡死看门狗误判 |
 | `DOWNLOAD_START_JITTER` | `0` | 否 | 在上面的间隔上再随机加 0~N 秒（浮点，负数按 0）。`DOWNLOAD_START_INTERVAL=0` 时整个节流关闭，本项不起作用 |
+| `HISTORY_TAKEOUT` | `false` | 否 | 历史下载的**扫描阶段**（翻消息列表）改走 Telegram 的数据导出（takeout）会话：实测快 3.5–4.6 倍、几乎不限流；文件下载不受影响。申请不到 / 中途失效会自动退回普通方式接着扫，日志记一行 `[takeout] …退回普通会话`。数据见 `docs/takeout-experiment.md`。<br>Scan chat history (the message-listing step only) through a takeout session: 3.5–4.6× faster and rarely rate-limited in tests; file downloads are unaffected. Falls back to the normal session automatically if takeout can't be opened or stops working. |
 | `MAX_TOTAL_CONNECTIONS` | `20` | 否 | 全局最大并发 HTTP 连接数 |
 | `CHUNK_SIZE` | `1048576` | 否 | 分块下载每块大小（字节），必须是 4096 的倍数，上限 1048576（1 MB） |
 | `SMALL_FILE_THRESHOLD_MB` | `5` | 否 | 低于此 MB 阈值的文件视为"小文件"，可用全部连接（连接分级调度）|

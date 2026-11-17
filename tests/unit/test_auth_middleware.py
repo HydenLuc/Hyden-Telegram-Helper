@@ -127,3 +127,43 @@ def test_WebSocket_跨站拒绝(monkeypatch):
     assert check_ws_auth(req) is False
     req.headers = {"Origin": "http://127.0.0.1:8091"}
     assert check_ws_auth(req) is True
+
+
+# ── 2026-11-17：控制台首页免钥匙（只对声明了 PUBLIC_PAGES_KEY 的服务） ──────────
+
+@pytest.fixture
+def dashboard_like_app(monkeypatch):
+    import config
+    from common.auth import PUBLIC_PAGES_KEY
+    monkeypatch.setattr(config, "API_KEY", "secret123")
+    application = web.Application(middlewares=[auth_middleware])
+    application[PUBLIC_PAGES_KEY] = frozenset({"/"})
+    application.router.add_get("/", _ok)
+    application.router.add_get("/api/status", _ok)
+    return application
+
+
+async def test_声明了公开首页_首页不要钥匙(dashboard_like_app):
+    async with TestClient(TestServer(dashboard_like_app)) as client:
+        assert (await client.get("/")).status == 200
+
+
+async def test_声明了公开首页_接口照样要钥匙(dashboard_like_app):
+    async with TestClient(TestServer(dashboard_like_app)) as client:
+        assert (await client.get("/api/status")).status == 401
+        assert (await client.get("/api/status", headers={"X-API-Key": "secret123"})).status == 200
+
+
+async def test_没声明的服务_首页仍要钥匙(app_with_key):
+    """downloader / mover / unzipper 的页面里写着钥匙，不能被这次改动放开。"""
+    async with TestClient(TestServer(app_with_key)) as client:
+        assert (await client.get("/")).status == 401
+
+
+def test_dashboard_真的声明了公开首页_且页面不含钥匙占位符():
+    from common.auth import PUBLIC_PAGES_KEY
+    from dashboard import main as dmain
+    from dashboard.templates import DASHBOARD_HTML
+    assert "__API_KEY__" not in DASHBOARD_HTML
+    src = open(dmain.__file__, encoding="utf-8").read()
+    assert 'app[PUBLIC_PAGES_KEY] = frozenset({"/"})' in src

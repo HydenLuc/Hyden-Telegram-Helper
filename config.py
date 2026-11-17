@@ -235,6 +235,8 @@ SMALL_FILE_THRESHOLD_MB         = int(os.getenv("SMALL_FILE_THRESHOLD_MB", 5))
 SMALL_FILE_RESERVED_CONNECTIONS = int(os.getenv("SMALL_FILE_RESERVED_CONNECTIONS", 3))
 # 历史下载（source="history"）最多占总连接的比例（剩余给实时独占）
 HISTORY_CONN_FRACTION           = float(os.getenv("HISTORY_CONN_FRACTION", "0.6"))
+# 历史下载的扫描阶段走 takeout 会话（扫得快、几乎不限流；失败自动退回普通会话）。默认关。见 downloader/history/takeout.py
+HISTORY_TAKEOUT                 = os.getenv("HISTORY_TAKEOUT", "false").strip().lower() in ("1", "true", "yes", "on")
 AUTO_MOVE             = os.getenv("AUTO_MOVE", "true").lower() == "true"
 # 重启 / 断电后：RESUME = 恢复成关机前的暂停开关（默认）；PAUSED = 每次都回到出厂默认（下载监听暂停）
 # 说明见 common/run_state.py（2026-11-13）

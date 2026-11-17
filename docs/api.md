@@ -90,6 +90,9 @@
 | | WS     | `/ws` | 1s 推送 current_tasks/pending/history |
 | **Dashboard (8090)** | | | |
 | | GET    | `/api/overview` | 后端代理：并发拉三模块 status 聚合 |
+| | GET/POST | `/api/config` | 设置页可编辑的 .env 配置（白名单，见 `dashboard/settings_api.py`）|
+| | GET    | `/api/help` | 设置项「?」说明卡片文字（`dashboard/help_texts.py`）|
+| | POST   | `/api/notify/test` | 发一条测试通知 |
 
 ---
 
@@ -317,6 +320,29 @@
     "unzipper":   {"online": bool, "data": <state>}
   }
   ```
+
+### `GET /api/config` / `POST /api/config`（2026-11-16 #1803 扩充）
+- 白名单在 `dashboard/settings_api.py` 的 `_EDITABLE_FIELDS`；凭证 / 端口 / 监听地址永不开放
+- GET 返回：`values`（.env 里写着的值）、`pending`（已保存但正在跑的服务还没用上的键）、
+  `secrets_set`（`BOT_TOKEN` 设没设；值永远返回空串）、`api_key_set`、`limits.DOWNLOAD_TIMEOUT_MIN`
+- POST 只传要改的键；**值为空串 = 删掉 .env 里这一行**（回到默认）。校验失败 400 + `error`
+- 响应：`saved`、`applied_now`（立即生效的，目前只有 `MAX_TOTAL_CONNECTIONS`，会推给下载器）、`need_restart`、`restart_keys`、`restart_hint`
+
+### `GET /api/help`
+- `{键: {kind, what, up?, down?, when, warn?}}`，`kind` = `switch` / `num` / `info`
+
+### `POST /api/notify/test`
+- body 可带 `ADMIN_CHAT_ID` / `BOT_TOKEN`（不带就用已保存的）；只走 Bot API，没 Token 返回 400
+
+---
+
+## 4a. 页面鉴权（2026-11-17）
+
+- 设了 `API_KEY` 后，所有 `/api/*` 都要带 `X-API-Key`。
+- **控制台（dashboard）首页 `/` 不要钥匙**：它只是一个不含钥匙的页面壳，数据全走 `/api/`。浏览器打开后第一次调接口遇到 401 会弹框要钥匙，存在浏览器里；监控探首页照样是 200。由 `app[PUBLIC_PAGES_KEY] = frozenset({"/"})` 声明（`common/auth.py`）。
+- downloader / mover / unzipper 的页面会把钥匙写进 HTML，**首页仍要钥匙**（`?key=` 或 `X-API-Key`），不能声明成公开。
+- 旧链接里带的 `?key=`：控制台会存进浏览器并从地址栏去掉。
+- `/api/overview` 多了 `no_api_key`（布尔）：没设钥匙、又不是在本机打开时，控制台顶部显示黄色提醒（可关掉）。
 
 ---
 

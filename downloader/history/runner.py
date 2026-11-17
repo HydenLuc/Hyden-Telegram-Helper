@@ -9,6 +9,8 @@
 - 状态机：running → paused/done/error；C 场景扫完 → ready_for_selection
 """
 import asyncio
+import contextlib
+import time
 import uuid
 from datetime import datetime, timedelta
 
@@ -20,6 +22,7 @@ import downloader.storage as storage
 from downloader.tg.client import client
 from downloader.utils import media_filename
 from downloader.history.utils import is_downloadable_media, message_size
+from downloader.history import takeout
 from downloader.md5_worker import _extract_fuid
 from common.logger import get_logger
 
@@ -178,76 +181,80 @@ async def run_job(job_id: str) -> None:
                     pass
             client_min_date = job.get("min_date")  # ISO 字符串
 
+        takeout.install_flood_counter()
+        t0, fc0, fs0 = time.monotonic(), takeout.flood_counter.count, takeout.flood_counter.seconds
+        mode = "takeout" if takeout.enabled() else "普通"
         try:
-            async for msg in client.iter_messages(job["chat_id"], **kwargs):
-                # 用户停止
-                cur = state.history_jobs.get(job_id)
-                if not cur or cur["status"] != "running":
-                    break
+            async with contextlib.aclosing(takeout.scan_messages(client, job["chat_id"], **kwargs)) as msgs:
+                async for msg in msgs:
+                    # 用户停止
+                    cur = state.history_jobs.get(job_id)
+                    if not cur or cur["status"] != "running":
+                        break
 
-                if not is_downloadable_media(msg):
-                    continue
-                # 客户端 min_date 过滤（B/date 场景）
-                if client_min_date and msg.date.isoformat() < client_min_date:
-                    # iter_messages reverse=True 是旧→新，遇到比 min_date 旧的应早跳
-                    # 但我们保守 continue（可能旧消息夹杂）
-                    continue
+                    if not is_downloadable_media(msg):
+                        continue
+                    # 客户端 min_date 过滤（B/date 场景）
+                    if client_min_date and msg.date.isoformat() < client_min_date:
+                        # iter_messages reverse=True 是旧→新，遇到比 min_date 旧的应早跳
+                        # 但我们保守 continue（可能旧消息夹杂）
+                        continue
 
-                cur["total_scanned"] += 1
+                    cur["total_scanned"] += 1
 
-                key = (cur["chat_id"], msg.id)
-                if key in completed_set or key in active_pending_set:
-                    cur["total_skipped"] += 1
-                    cur["last_seen_id"] = max(cur["last_seen_id"], msg.id)
-                    _maybe_persist(cur)
-                    continue
-
-                # fuid 查重
-                fuid_key = _extract_fuid(msg)
-                duplicate = False
-                matched_filename = matched_path = None
-                if fuid_key and fuid_key in state.content_index.get("fuid", {}):
-                    md5_hex = state.content_index["fuid"][fuid_key]
-                    existing = state.content_index.get("md5", {}).get(md5_hex)
-                    if existing:
-                        duplicate = True
-                        matched_filename = existing.get("filename")
-                        matched_path = existing.get("path")
-
-                if cur["scene"] in ("A", "B"):
-                    # M2/s1: A/B fuid 命中静默跳过 + 计数
-                    if duplicate:
-                        cur["total_duplicates"] += 1
+                    key = (cur["chat_id"], msg.id)
+                    if key in completed_set or key in active_pending_set:
                         cur["total_skipped"] += 1
                         cur["last_seen_id"] = max(cur["last_seen_id"], msg.id)
                         _maybe_persist(cur)
                         continue
-                    # spawn download（M6 流式）
-                    await _history_semaphore.acquire()
-                    asyncio.create_task(_run_one_history_download(job_id, msg))
-                    cur["total_queued"] += 1
-                    cur["last_seen_id"] = max(cur["last_seen_id"], msg.id)
-                    _maybe_persist(cur)
-                else:
-                    # C 场景：入 scan_results
-                    try:
-                        fname = media_filename(msg)
-                    except Exception:
-                        fname = ""
-                    cur["scan_results"].append({
-                        "message_id":       msg.id,
-                        "filename":         fname,
-                        "size_mb":          round(message_size(msg) / 1048576, 1),
-                        "date":             msg.date.isoformat() if msg.date else "",
-                        "duplicate":        duplicate,
-                        "matched_filename": matched_filename,
-                        "matched_path":     matched_path,
-                        "selected":         False,
-                    })
-                    if duplicate:
-                        cur["total_duplicates"] += 1
-                    cur["last_seen_id"] = max(cur["last_seen_id"], msg.id)
-                    _maybe_persist(cur)
+
+                    # fuid 查重
+                    fuid_key = _extract_fuid(msg)
+                    duplicate = False
+                    matched_filename = matched_path = None
+                    if fuid_key and fuid_key in state.content_index.get("fuid", {}):
+                        md5_hex = state.content_index["fuid"][fuid_key]
+                        existing = state.content_index.get("md5", {}).get(md5_hex)
+                        if existing:
+                            duplicate = True
+                            matched_filename = existing.get("filename")
+                            matched_path = existing.get("path")
+
+                    if cur["scene"] in ("A", "B"):
+                        # M2/s1: A/B fuid 命中静默跳过 + 计数
+                        if duplicate:
+                            cur["total_duplicates"] += 1
+                            cur["total_skipped"] += 1
+                            cur["last_seen_id"] = max(cur["last_seen_id"], msg.id)
+                            _maybe_persist(cur)
+                            continue
+                        # spawn download（M6 流式）
+                        await _history_semaphore.acquire()
+                        asyncio.create_task(_run_one_history_download(job_id, msg))
+                        cur["total_queued"] += 1
+                        cur["last_seen_id"] = max(cur["last_seen_id"], msg.id)
+                        _maybe_persist(cur)
+                    else:
+                        # C 场景：入 scan_results
+                        try:
+                            fname = media_filename(msg)
+                        except Exception:
+                            fname = ""
+                        cur["scan_results"].append({
+                            "message_id":       msg.id,
+                            "filename":         fname,
+                            "size_mb":          round(message_size(msg) / 1048576, 1),
+                            "date":             msg.date.isoformat() if msg.date else "",
+                            "duplicate":        duplicate,
+                            "matched_filename": matched_filename,
+                            "matched_path":     matched_path,
+                            "selected":         False,
+                        })
+                        if duplicate:
+                            cur["total_duplicates"] += 1
+                        cur["last_seen_id"] = max(cur["last_seen_id"], msg.id)
+                        _maybe_persist(cur)
 
         except (FloodWaitError, FloodPremiumWaitError) as e:
             cur = state.history_jobs.get(job_id)
@@ -285,7 +292,11 @@ async def run_job(job_id: str) -> None:
     _bump_updated(cur)
     _persist()
     await _broadcast()
-    _log.info(f"[history/{job_id[:8]}] 完成：扫描 {cur['total_scanned']} 排队 {cur['total_queued']} 跳过 {cur['total_skipped']}")
+    _log.info(
+        f"[history/{job_id[:8]}] 完成：扫描 {cur['total_scanned']} 排队 {cur['total_queued']} 跳过 {cur['total_skipped']}"
+        f"；{mode}会话，用时 {time.monotonic() - t0:.0f} 秒，"
+        f"期间限流等待 {takeout.flood_counter.count - fc0} 次共 {takeout.flood_counter.seconds - fs0} 秒"
+    )
 
 
 # ── 单条历史下载（被 _scan_semaphore 限流后 spawn）──────────────────────────

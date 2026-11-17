@@ -3,14 +3,11 @@
 
 - `GET /`              返回 HTML 单页
 - `GET /api/overview`  后端代理：并发拉取三模块状态，统一返回
-- `GET /api/config`    读取可编辑配置（白名单）+ 部署模式
-- `POST /api/config`   校验并写入 .env（重启后生效）
+- `GET/POST /api/config`、`/api/help`、`/api/notify/test`  设置页，见 dashboard/settings_api.py
 
 后端代理设计避开 CORS：浏览器只调 dashboard 同源 API。
 """
 import asyncio
-import os
-from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -19,136 +16,12 @@ from aiohttp import web
 import config
 from dashboard.templates import DASHBOARD_HTML
 from dashboard import services as svc_ctl
-from common.auth import auth_middleware
-from common.env_writer import save_env_values
+from dashboard import settings_api
+from common.auth import PUBLIC_PAGES_KEY, auth_middleware
 from common.logger import get_logger
 from common.shutdown import install_stop_handler
 
 _log = get_logger("dashboard")
-
-# ── 设置页可编辑字段白名单（凭证/端口/监听地址永不开放编辑） ─────────────
-#    "path" 路径 | ("int", min, max) 整数区间 | "bool" | ("enum", [...]) 枚举
-_EDITABLE_FIELDS: dict[str, Any] = {
-    "DATA_ROOT":             "path",
-    "DOWNLOAD_DIR":          "path",
-    "WATCH_PATH":            "path",
-    "OUTPUT_PATH":           "path",
-    "MAX_TOTAL_CONNECTIONS": ("int", 1, 100),
-    "MAX_CONCURRENT_TASKS":  ("int", 1, 20),
-    "MOVER_MAX_CONCURRENT":  ("int", 1, 20),
-    "DOWNLOAD_TIMEOUT":      ("int", 10, 3600),
-    "AUTO_MOVE":             "bool",
-    "LOG_LEVEL":             ("enum", ["DEBUG", "INFO", "WARNING", "ERROR"]),
-    "RESTART_MODE":          ("enum", ["RESUME", "PAUSED"]),   # 见 common/run_state.py
-}
-_PATH_FIELDS = ("DATA_ROOT", "DOWNLOAD_DIR", "WATCH_PATH", "OUTPUT_PATH")
-
-
-def _resolve_dirs(env: dict[str, str]) -> dict[str, Path]:
-    """按 config.py 相同优先级（显式 > DATA_ROOT 派生 > 内置默认）计算三个生效目录。"""
-    data_root = (env.get("DATA_ROOT") or "").strip()
-    if data_root:
-        dmz = Path(data_root) / "telegramDMZ"
-        defaults = {"DOWNLOAD_DIR": dmz / "download",
-                    "WATCH_PATH":   dmz / "move",
-                    "OUTPUT_PATH":  dmz / "unzip"}
-    else:
-        defaults = {"DOWNLOAD_DIR": config.DEFAULT_DOWNLOAD_DIR,
-                    "WATCH_PATH":   config.DEFAULT_WATCH_PATH,
-                    "OUTPUT_PATH":  config.DEFAULT_OUTPUT_PATH}
-    return {k: Path(env[k]) if (env.get(k) or "").strip() else defaults[k]
-            for k in ("DOWNLOAD_DIR", "WATCH_PATH", "OUTPUT_PATH")}
-
-
-def _validate_dirs_disjoint(dirs: dict[str, Path]) -> str | None:
-    """三个目录互不重叠（相等或互为父子都不行）。返回错误信息或 None。"""
-    items = [(k, p.expanduser().resolve()) for k, p in dirs.items()]
-    for i, (k1, p1) in enumerate(items):
-        for k2, p2 in items[i + 1:]:
-            if p1 == p2 or p1.is_relative_to(p2) or p2.is_relative_to(p1):
-                return f"{k1} 与 {k2} 目录重叠（{p1} ↔ {p2}），会触发重复检测和误触发解压"
-    return None
-
-
-async def _config_get_handler(_request: web.Request) -> web.Response:
-    values = {k: os.getenv(k, "") for k in _EDITABLE_FIELDS}
-    return web.json_response({
-        "docker": config.IS_DOCKER,
-        "env_file": str(config.ENV_FILE),
-        "values": values,
-        "effective_dirs": {
-            "DOWNLOAD_DIR": str(config.DOWNLOAD_DIR),
-            "WATCH_PATH":   str(config.WATCH_PATH),
-            "OUTPUT_PATH":  str(config.OUTPUT_PATH),
-        },
-        "restart_hint": "docker compose restart" if config.IS_DOCKER
-                        else "./stop.sh && ./start.sh",
-    })
-
-
-async def _config_post_handler(request: web.Request) -> web.Response:
-    try:
-        body = await request.json()
-    except Exception:
-        return web.json_response({"error": "无效 JSON"}, status=400)
-    if not isinstance(body, dict):
-        return web.json_response({"error": "请求体必须是对象"}, status=400)
-
-    updates: dict[str, str] = {}
-    for key, raw in body.items():
-        if key not in _EDITABLE_FIELDS:
-            return web.json_response({"error": f"字段不允许修改：{key}"}, status=400)
-        spec = _EDITABLE_FIELDS[key]
-        val = str(raw).strip()
-        if spec == "path":
-            if config.IS_DOCKER:
-                return web.json_response(
-                    {"error": "Docker 部署下数据目录由宿主机映射决定：请修改宿主 .env 的 "
-                              "HOST_DATA_ROOT 后执行 docker compose up -d"}, status=400)
-        elif spec == "bool":
-            if val.lower() not in ("true", "false"):
-                return web.json_response({"error": f"{key} 只能是 true/false"}, status=400)
-            val = val.lower()
-        elif isinstance(spec, tuple) and spec[0] == "int":
-            try:
-                n = int(val)
-            except ValueError:
-                return web.json_response({"error": f"{key} 必须是整数"}, status=400)
-            if not (spec[1] <= n <= spec[2]):
-                return web.json_response(
-                    {"error": f"{key} 需在 {spec[1]}~{spec[2]} 之间"}, status=400)
-        elif isinstance(spec, tuple) and spec[0] == "enum":
-            val = val.upper()
-            if val not in spec[1]:
-                return web.json_response(
-                    {"error": f"{key} 只能是 {'/'.join(spec[1])}"}, status=400)
-        updates[key] = val
-
-    if not updates:
-        return web.json_response({"error": "没有可保存的字段"}, status=400)
-
-    # 路径互斥校验：用"保存后将生效"的值模拟一遍派生
-    if any(k in _PATH_FIELDS for k in updates):
-        merged = {k: os.getenv(k, "") for k in _PATH_FIELDS}
-        merged.update({k: v for k, v in updates.items() if k in _PATH_FIELDS})
-        err = _validate_dirs_disjoint(_resolve_dirs(merged))
-        if err:
-            return web.json_response({"error": err}, status=400)
-
-    try:
-        save_env_values(config.ENV_FILE, updates)
-    except Exception as e:
-        _log.error(f"[dashboard] 写入 .env 失败: {e}")
-        return web.json_response({"error": f"写入 .env 失败：{e}"}, status=500)
-
-    _log.info(f"[dashboard] 设置已保存：{', '.join(sorted(updates))}")
-    return web.json_response({
-        "saved": sorted(updates),
-        "need_restart": True,
-        "restart_hint": "docker compose restart" if config.IS_DOCKER
-                        else "./stop.sh && ./start.sh",
-    })
-
 
 # 离线判断：连续 N 次失败才标 online=false；1 次成功立即恢复
 OFFLINE_THRESHOLD = 2
@@ -310,6 +183,8 @@ async def _overview_handler(_request: web.Request) -> web.Response:
         "mover": mover,
         "unzipper": unzipper,
         "brand_name": brand_name(load_branding(), dl_data.get("account_name") if isinstance(dl_data, dict) else None),
+        # 前端据此在「不是本机打开、又没设钥匙」时显示黄色提醒
+        "no_api_key": not config.API_KEY,
     }
     # ?slim=1：只要计数不要大列表（手机端轮询用）。
     if _want_slim:
@@ -414,10 +289,15 @@ async def _autostart_post_handler(request: web.Request) -> web.Response:
 
 async def main():
     app = web.Application(middlewares=[auth_middleware])
+    # 控制台首页只是一个空壳 HTML（不含钥匙，数据都走 /api/），不用钥匙也能打开：
+    # 设了 API_KEY 后，浏览器打开页面、遇到 401 再弹框要钥匙；监控探首页也照样是 200。
+    app[PUBLIC_PAGES_KEY] = frozenset({"/"})
     app.router.add_get("/", _index_handler)
     app.router.add_get("/api/overview", _overview_handler)
-    app.router.add_get("/api/config", _config_get_handler)
-    app.router.add_post("/api/config", _config_post_handler)
+    app.router.add_get("/api/config", settings_api.config_get_handler)
+    app.router.add_post("/api/config", settings_api.config_post_handler)
+    app.router.add_get("/api/help", settings_api.help_handler)
+    app.router.add_post("/api/notify/test", settings_api.notify_test_handler)
     app.router.add_get("/api/health", _health_handler)
     app.router.add_get("/api/branding", _branding_get_handler)
     app.router.add_post("/api/branding", _branding_post_handler)

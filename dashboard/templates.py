@@ -19,6 +19,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   a{color:var(--blu);text-decoration:none}
 
   /* 顶栏 */
+  .nokey-banner{background:#3a2f0b;color:#f5d27a;border-bottom:1px solid #6b5514;padding:.55rem 1rem;font-size:.9rem;line-height:1.5}
+  .nokey-banner code{background:rgba(0,0,0,.25);padding:0 .25rem;border-radius:3px}
+  .nokey-banner button{margin-left:.5rem;background:transparent;color:#f5d27a;border:1px solid #6b5514;border-radius:4px;padding:.1rem .5rem;cursor:pointer}
   .topbar{position:sticky;top:0;z-index:50;background:rgba(22,24,28,.92);backdrop-filter:blur(8px);
     border-bottom:1px solid var(--line);padding:.7rem 1.1rem}
   .topbar-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
@@ -122,7 +125,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .paths{display:none;margin-top:.35rem;padding:.4rem .55rem;background:var(--panel2);border-radius:6px;
     font-family:ui-monospace,monospace;font-size:.74rem;color:var(--dim);word-break:break-all;line-height:1.5}
   .paths.show{display:block}
-  input[type=text],input[type=number],select{background:var(--bg);border:1px solid var(--line);color:var(--txt);
+  input[type=text],input[type=number],input[type=password],select{background:var(--bg);border:1px solid var(--line);color:var(--txt);
     border-radius:6px;padding:.45rem .6rem;font-size:.88rem;font-family:inherit}
   input:focus,select:focus{outline:none;border-color:var(--grn)}
 
@@ -131,6 +134,41 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   .field label{flex:0 0 210px;color:var(--dim)}
   .field input,.field select{flex:1;min-width:160px}
   .field .eff{flex-basis:100%;color:var(--dim2);font-size:.74rem;padding-left:210px;word-break:break-all}
+  /* 「?」说明卡片（#1803）：电脑悬停显示、手机点一下显示、点别处 / Esc 收起；文字在 dashboard/help_texts.py */
+  .hq{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;
+    margin-left:.35rem;border-radius:50%;border:1px solid var(--line);background:var(--panel2);color:var(--dim);
+    font-size:11px;font-weight:700;line-height:1;cursor:pointer;vertical-align:middle;flex:none;font-family:inherit}
+  .hq:hover,.hq[aria-expanded=true]{color:var(--txt);border-color:var(--blu)}
+  .hq-pair{display:inline-flex;align-items:center}
+  /* 卡片标题是两端对齐的 flex：紧跟标题文字的「?」要贴着文字，别被甩到中间 */
+  .card h3>.hq{margin-right:auto}
+  details.adv>summary h3{justify-content:flex-start;gap:.5rem}
+  .hq:focus-visible{outline:2px solid var(--blu);outline-offset:1px}
+  @media(pointer:coarse){ .hq{width:24px;height:24px;font-size:13px} }
+  #help-pop{position:absolute;z-index:1000;display:none;background:var(--panel2);border:1px solid var(--line);
+    border-radius:8px;padding:.65rem .8rem;font-size:.8rem;line-height:1.55;color:var(--txt);
+    box-shadow:0 6px 24px rgba(0,0,0,.45)}
+  #help-pop.show{display:block}
+  #help-pop .hp-what{margin-bottom:.35rem}
+  #help-pop .hp-row{color:var(--dim);margin-top:.25rem}
+  #help-pop .hp-row b{color:var(--txt);font-weight:600;margin-right:.45rem}
+  #help-pop .hp-warn{margin-top:.45rem;color:var(--amb)}
+  .pend{display:inline-block;margin-left:.4rem;padding:0 .4rem;border-radius:4px;font-size:.68rem;
+    color:var(--amb);border:1px solid rgba(255,176,32,.45);vertical-align:middle}
+  .save-row{margin-top:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+  .sw-row{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.45rem 0;border-bottom:1px solid var(--line)}
+  .sw-row:last-child{border-bottom:none}
+  .sw-row .grow{display:flex;align-items:center}
+  details.adv>summary{list-style:none;cursor:pointer}
+  details.adv>summary::-webkit-details-marker{display:none}
+  details.adv>summary h3{margin:0}
+  details.adv>summary h3::before{content:"▸ ";color:var(--dim2)}
+  details.adv[open]>summary h3{margin-bottom:.8rem}
+  details.adv[open]>summary h3::before{content:"▾ "}
+  .field textarea{flex:1;min-width:160px;background:var(--bg);border:1px solid var(--line);color:var(--txt);
+    border-radius:6px;padding:.45rem .6rem;font-size:.85rem;font-family:ui-monospace,monospace;resize:vertical}
+  .field label{display:flex;align-items:center}
+  @media(max-width:620px){ .field label{flex-basis:100%} .field .eff{padding-left:0} }
   .banner{background:rgba(61,155,224,.1);border:1px solid var(--blu);color:#a9d5f2;
     border-radius:6px;padding:.6rem .8rem;font-size:.82rem;margin-bottom:1rem;display:none}
   .banner.show{display:block}
@@ -146,6 +184,12 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </style>
 </head>
 <body>
+
+<div id="nokey-banner" class="nokey-banner" style="display:none">
+  ⚠️ 这个控制台<b>没有设访问密码（API_KEY）</b>：能连到这个地址的人都能打开、改设置。
+  只在自己电脑上用可以忽略；要从手机或别的设备访问，请在 <code>.env</code> 里设 <code>API_KEY</code> 后重启（见文档「部署」一节）。
+  <button type="button" onclick="dismissNoKeyBanner()">知道了</button>
+</div>
 
 <div class="topbar">
   <div class="topbar-row">
@@ -208,10 +252,13 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div class="field"><input type="text" id="ch-search-input" placeholder="输入频道/群组名称关键词">
         <button class="btn primary" id="ch-search-btn">搜索</button></div>
       <div id="ch-search-results"></div></div>
-    <div class="card"><h3>监听中 <span class="dim" id="ch-count"></span>
-      <button class="btn sm" id="ch-pause-btn">全局暂停:—</button>
-      <button class="btn sm" id="ch-expause-btn" title="只管例外频道；开了之后例外频道也停收">例外暂停:—</button>
-      <button class="btn sm" id="ch-savedpause-btn" title="只管「我的收藏」；不受另外两个开关和监听列表影响，重启后保持">收藏暂停:—</button></h3>
+    <div class="card"><h3><span>监听中 <span class="dim" id="ch-count"></span></span>
+      <span class="btn-group">
+        <span class="hq-pair"><button class="btn sm" id="ch-pause-btn">全局暂停:—</button><button type="button" class="hq" data-help="pause_global" aria-label="说明" aria-expanded="false">?</button></span>
+        <span class="hq-pair"><button class="btn sm" id="ch-expause-btn">例外暂停:—</button><button type="button" class="hq" data-help="pause_exempt" aria-label="说明" aria-expanded="false">?</button></span>
+        <span class="hq-pair"><button class="btn sm" id="ch-savedpause-btn">收藏暂停:—</button><button type="button" class="hq" data-help="pause_saved" aria-label="说明" aria-expanded="false">?</button></span>
+        <span class="hq-pair dim" style="font-weight:400;text-transform:none">例外频道是什么<button type="button" class="hq" data-help="exempt_channel" aria-label="说明" aria-expanded="false">?</button></span>
+      </span></h3>
       <div class="list-tools"><input type="search" id="ch-filter" placeholder="搜索监听中的频道（名称 / ID）…">
         <select id="ch-kind"><option value="all">全部</option><option value="normal">正常监听</option><option value="exempt">例外频道</option><option value="fav">⭐ 喜爱</option></select>
         <select id="ch-sort">
@@ -261,7 +308,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="banner" id="docker-banner">🐳 Docker 部署：数据目录由宿主机映射决定（改宿主 <b>.env</b> 的
       <b>HOST_DATA_ROOT</b> 后 <b>docker compose up -d</b>），此处路径为只读。</div>
 
-    <div class="card" id="branding-card"><h3>页面标题</h3>
+    <div class="card" id="switch-card"><h3>暂停开关 <span class="dim">（点一下切换，立即生效，重启后保持）</span></h3>
+      <div class="sw-row"><div class="grow">全局暂停（普通频道）<button type="button" class="hq" data-help="pause_global" aria-label="说明" aria-expanded="false">?</button></div><button class="btn sm" id="sw-global">—</button></div>
+      <div class="sw-row"><div class="grow">例外暂停（例外频道）<button type="button" class="hq" data-help="pause_exempt" aria-label="说明" aria-expanded="false">?</button></div><button class="btn sm" id="sw-exempt">—</button></div>
+      <div class="sw-row"><div class="grow">收藏暂停<button type="button" class="hq" data-help="pause_saved" aria-label="说明" aria-expanded="false">?</button></div><button class="btn sm" id="sw-saved">—</button></div>
+      <div class="sw-row"><div class="grow">搬运暂停<button type="button" class="hq" data-help="pause_mover" aria-label="说明" aria-expanded="false">?</button></div><button class="btn sm" id="sw-mover">—</button></div>
+      <div class="sw-row"><div class="grow">解压暂停<button type="button" class="hq" data-help="pause_unzipper" aria-label="说明" aria-expanded="false">?</button></div><button class="btn sm" id="sw-unzipper">—</button></div>
+    </div>
+
+    <div class="card" id="branding-card"><h3>页面标题<button type="button" class="hq" data-help="branding" aria-label="说明" aria-expanded="false">?</button></h3>
       <div class="field"><label>显示的名字</label>
         <input type="text" id="brand-input" maxlength="30" placeholder="留空 = 用登录的 Telegram 账号名"></div>
       <div class="field"><label></label>
@@ -271,7 +326,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div class="eff">左上角显示「名字 + TGhelper」。保存后马上生效，不用重启。</div>
     </div>
 
-    <div class="card" id="autostart-card"><h3>开机自动启动</h3>
+    <div class="card" id="autostart-card"><h3>开机自动启动<button type="button" class="hq" data-help="autostart" aria-label="说明" aria-expanded="false">?</button></h3>
       <div class="row" style="justify-content:space-between;align-items:center">
         <div id="autostart-state" class="dim">读取中…</div>
         <button class="btn btn-sm" id="autostart-btn" style="display:none"></button>
@@ -280,44 +335,77 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
 
     <!-- 服务启停：只有 Docker 部署有（经 control 服务启停本项目容器）；原生部署整张卡片隐藏 -->
-    <div class="card" id="svc-card"><h3>服务启停 <span class="dim" id="svc-hint">（下载 · 搬运 · 解压）</span></h3>
+    <div class="card" id="svc-card" data-card="svc"><h3>服务启停<button type="button" class="hq" data-help="services" aria-label="说明" aria-expanded="false">?</button> <span class="dim" id="svc-hint">（下载 · 搬运 · 解压）</span></h3>
       <div id="svc-list"><div class="empty">加载中…</div></div>
       <div class="eff" style="margin-top:.5rem">
         · 停掉的服务会一直停着，直到你在这里点「启动」（健康检查也不会去拉它）。
         · <b>dashboard</b> 只显示状态、不给按钮——它就是本页面，停了页面就没了。
       </div>
+      <div style="margin-top:.8rem"></div>
+      <div class="field"><label for="f-AUTOHEAL">卡死自动重启<button type="button" class="hq" data-help="AUTOHEAL" aria-label="说明" aria-expanded="false">?</button></label><select id="f-AUTOHEAL" data-env="AUTOHEAL"><option value="">（默认：开）</option><option value="true">开</option><option value="false">关</option></select></div>
+      <div class="save-row"><button class="btn primary" data-save="svc">保存</button><span class="msg" data-save-msg="svc"></span></div>
     </div>
 
-    <div class="card"><h3>数据目录 <span class="dim" id="env-path"></span></h3>
-      <div class="field"><label>DATA_ROOT（推荐只填这个）</label>
-        <input type="text" id="f-DATA_ROOT" placeholder="留空 = 用下方逐项/默认值">
-        <div class="eff">保存后自动创建 telegramDMZ/{download,move,unzip}</div></div>
-      <div class="field"><label>DOWNLOAD_DIR（下载）</label>
-        <input type="text" id="f-DOWNLOAD_DIR" placeholder="留空 = 由 DATA_ROOT 派生">
-        <div class="eff" id="eff-DOWNLOAD_DIR"></div></div>
-      <div class="field"><label>WATCH_PATH（搬运目标 = 解压监听）</label>
-        <input type="text" id="f-WATCH_PATH" placeholder="留空 = 由 DATA_ROOT 派生">
-        <div class="eff" id="eff-WATCH_PATH"></div></div>
-      <div class="field"><label>OUTPUT_PATH（解压输出）</label>
-        <input type="text" id="f-OUTPUT_PATH" placeholder="留空 = 由 DATA_ROOT 派生">
-        <div class="eff" id="eff-OUTPUT_PATH"></div></div>
-    </div>
-    <div class="card"><h3>性能与行为</h3>
-      <div class="field"><label>总连接数上限</label><input type="number" id="f-MAX_TOTAL_CONNECTIONS" min="1" max="100"></div>
-      <div class="field"><label>解压并发上限</label><input type="number" id="f-MAX_CONCURRENT_TASKS" min="1" max="20"></div>
-      <div class="field"><label>搬运并发上限</label><input type="number" id="f-MOVER_MAX_CONCURRENT" min="1" max="20"></div>
-      <div class="field"><label>下载超时（秒）</label><input type="number" id="f-DOWNLOAD_TIMEOUT" min="10" max="3600"></div>
-      <div class="field"><label>下载完自动搬运</label>
-        <select id="f-AUTO_MOVE"><option value="">（默认 true）</option><option value="true">true</option><option value="false">false</option></select></div>
-      <div class="field"><label>重启 / 断电来电后</label>
-        <select id="f-RESTART_MODE"><option value="">（默认：恢复上次状态）</option><option value="RESUME">恢复上次状态</option><option value="PAUSED">下载监听一律暂停</option></select>
-        <div class="eff">「恢复上次状态」：各个暂停开关回到关机前的样子。离线期间积压太多、不想一开机就全开下时，临时改成「一律暂停」。下次启动生效。</div></div>
-      <div class="field"><label>日志级别</label>
-        <select id="f-LOG_LEVEL"><option value="">（默认 INFO）</option><option>DEBUG</option><option>INFO</option><option>WARNING</option><option>ERROR</option></select></div>
-      <div style="margin-top:1rem"><button class="btn primary" id="save-btn">保存设置</button><span class="msg" id="save-msg"></span></div>
+    <div class="card" data-card="dirs"><h3>数据目录 <span class="dim" id="env-path"></span></h3>
+      <div class="field"><label for="f-DATA_ROOT">数据总目录（推荐只填这个）<button type="button" class="hq" data-help="DATA_ROOT" aria-label="说明" aria-expanded="false">?</button></label><input type="text" id="f-DATA_ROOT" data-env="DATA_ROOT" placeholder="留空 = 用下方逐项/默认值"><div class="eff">保存后自动创建 telegramDMZ/{download,move,unzip}</div></div>
+      <div class="field"><label for="f-DOWNLOAD_DIR">下载目录<button type="button" class="hq" data-help="DOWNLOAD_DIR" aria-label="说明" aria-expanded="false">?</button></label><input type="text" id="f-DOWNLOAD_DIR" data-env="DOWNLOAD_DIR" placeholder="留空 = 由数据总目录派生"><div class="eff" id="eff-DOWNLOAD_DIR"></div></div>
+      <div class="field"><label for="f-WATCH_PATH">搬运目标 = 解压监听<button type="button" class="hq" data-help="WATCH_PATH" aria-label="说明" aria-expanded="false">?</button></label><input type="text" id="f-WATCH_PATH" data-env="WATCH_PATH" placeholder="留空 = 由数据总目录派生"><div class="eff" id="eff-WATCH_PATH"></div></div>
+      <div class="field"><label for="f-OUTPUT_PATH">解压输出<button type="button" class="hq" data-help="OUTPUT_PATH" aria-label="说明" aria-expanded="false">?</button></label><input type="text" id="f-OUTPUT_PATH" data-env="OUTPUT_PATH" placeholder="留空 = 由数据总目录派生"><div class="eff" id="eff-OUTPUT_PATH"></div></div>
+      <div class="save-row"><button class="btn primary" data-save="dirs">保存</button><span class="msg" data-save-msg="dirs"></span></div>
     </div>
 
-    <div class="card"><h3>解压密码库 <span class="dim" id="pw-count"></span></h3>
+    <div class="card" data-card="perf"><h3>性能与行为</h3>
+      <div class="field"><label for="f-MAX_TOTAL_CONNECTIONS">总连接数上限<button type="button" class="hq" data-help="MAX_TOTAL_CONNECTIONS" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-MAX_TOTAL_CONNECTIONS" data-env="MAX_TOTAL_CONNECTIONS" min="1" max="64" placeholder="默认 20"></div>
+      <div class="field"><label for="f-MAX_CONCURRENT_TASKS">解压并发上限<button type="button" class="hq" data-help="MAX_CONCURRENT_TASKS" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-MAX_CONCURRENT_TASKS" data-env="MAX_CONCURRENT_TASKS" min="1" max="20" placeholder="默认 3"></div>
+      <div class="field"><label for="f-MOVER_MAX_CONCURRENT">搬运并发上限<button type="button" class="hq" data-help="MOVER_MAX_CONCURRENT" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-MOVER_MAX_CONCURRENT" data-env="MOVER_MAX_CONCURRENT" min="1" max="20" placeholder="默认 3"></div>
+      <div class="field"><label for="f-DOWNLOAD_TIMEOUT">下载超时（秒）<button type="button" class="hq" data-help="DOWNLOAD_TIMEOUT" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-DOWNLOAD_TIMEOUT" data-env="DOWNLOAD_TIMEOUT" min="120" max="3600" placeholder="默认 180"></div>
+      <div class="field"><label for="f-DOWNLOAD_START_INTERVAL">下载开始间隔（秒）<button type="button" class="hq" data-help="DOWNLOAD_START_INTERVAL" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-DOWNLOAD_START_INTERVAL" data-env="DOWNLOAD_START_INTERVAL" min="0" max="600" step="0.1" placeholder="默认 0 = 不限制"></div>
+      <div class="field"><label for="f-DOWNLOAD_START_JITTER">间隔随机加（秒）<button type="button" class="hq" data-help="DOWNLOAD_START_JITTER" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-DOWNLOAD_START_JITTER" data-env="DOWNLOAD_START_JITTER" min="0" max="600" step="0.1" placeholder="默认 0 = 不随机"></div>
+      <div class="field"><label for="f-AUTO_MOVE">下载完自动搬运<button type="button" class="hq" data-help="AUTO_MOVE" aria-label="说明" aria-expanded="false">?</button></label><select id="f-AUTO_MOVE" data-env="AUTO_MOVE"><option value="">（默认：开）</option><option value="true">开</option><option value="false">关</option></select></div>
+      <div class="field"><label for="f-RESTART_MODE">重启 / 断电来电后<button type="button" class="hq" data-help="RESTART_MODE" aria-label="说明" aria-expanded="false">?</button></label><select id="f-RESTART_MODE" data-env="RESTART_MODE"><option value="">（默认：恢复上次状态）</option><option value="RESUME">恢复上次状态</option><option value="PAUSED">下载监听一律暂停</option></select></div>
+      <div class="field"><label for="f-LOG_LEVEL">日志级别<button type="button" class="hq" data-help="LOG_LEVEL" aria-label="说明" aria-expanded="false">?</button></label><select id="f-LOG_LEVEL" data-env="LOG_LEVEL"><option value="">（默认 INFO）</option><option value="DEBUG">DEBUG</option><option value="INFO">INFO</option><option value="WARNING">WARNING</option><option value="ERROR">ERROR</option></select></div>
+      <div class="save-row"><button class="btn primary" data-save="perf">保存</button><span class="msg" data-save-msg="perf"></span></div>
+    </div>
+
+    <details class="card adv" data-card="adv"><summary><h3>高级：下载调度 <span class="dim">（一般不用动）</span></h3></summary>
+      <div class="field"><label for="f-RECOVER_WORKERS">重启后同时恢复几个任务<button type="button" class="hq" data-help="RECOVER_WORKERS" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-RECOVER_WORKERS" data-env="RECOVER_WORKERS" min="1" max="64" placeholder="默认 8"></div>
+      <div class="field"><label for="f-STALLED_RETRY_INTERVAL">搁置任务重试间隔（秒）<button type="button" class="hq" data-help="STALLED_RETRY_INTERVAL" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-STALLED_RETRY_INTERVAL" data-env="STALLED_RETRY_INTERVAL" min="60" max="86400" placeholder="默认 1800"></div>
+      <div class="field"><label for="f-STALLED_RETRY_BATCH">每轮重试几个<button type="button" class="hq" data-help="STALLED_RETRY_BATCH" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-STALLED_RETRY_BATCH" data-env="STALLED_RETRY_BATCH" min="1" max="50" placeholder="默认 3"></div>
+      <div class="field"><label for="f-HISTORY_CONN_FRACTION">历史下载最多占连接<button type="button" class="hq" data-help="HISTORY_CONN_FRACTION" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-HISTORY_CONN_FRACTION" data-env="HISTORY_CONN_FRACTION" min="0.1" max="0.9" step="0.1" placeholder="默认 0.6"></div>
+      <div class="field"><label for="f-HISTORY_TAKEOUT">扫历史用 takeout 通道<button type="button" class="hq" data-help="HISTORY_TAKEOUT" aria-label="说明" aria-expanded="false">?</button></label><select id="f-HISTORY_TAKEOUT" data-env="HISTORY_TAKEOUT"><option value="">（默认：关）</option><option value="true">开</option><option value="false">关</option></select></div>
+      <div class="field"><label for="f-SMALL_FILE_THRESHOLD_MB">小文件标准（MB）<button type="button" class="hq" data-help="SMALL_FILE_THRESHOLD_MB" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-SMALL_FILE_THRESHOLD_MB" data-env="SMALL_FILE_THRESHOLD_MB" min="1" max="2048" placeholder="默认 5"></div>
+      <div class="field"><label for="f-SMALL_FILE_RESERVED_CONNECTIONS">给小文件留几条连接<button type="button" class="hq" data-help="SMALL_FILE_RESERVED_CONNECTIONS" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-SMALL_FILE_RESERVED_CONNECTIONS" data-env="SMALL_FILE_RESERVED_CONNECTIONS" min="0" max="63" placeholder="默认 3"></div>
+      <div class="save-row"><button class="btn primary" data-save="adv">保存</button><span class="msg" data-save-msg="adv"></span></div>
+    </details>
+
+    <details class="card adv" data-card="unzip"><summary><h3>解压 · 记录保留</h3></summary>
+      <div class="field"><label for="f-UNZIPPER_7Z_TIMEOUT">单个包解压超时（秒）<button type="button" class="hq" data-help="UNZIPPER_7Z_TIMEOUT" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-UNZIPPER_7Z_TIMEOUT" data-env="UNZIPPER_7Z_TIMEOUT" min="60" max="604800" placeholder="留空 = 按大小自动算"></div>
+      <div class="field"><label for="f-UNZIPPER_SCAN_INTERVAL">补扫间隔（秒）<button type="button" class="hq" data-help="UNZIPPER_SCAN_INTERVAL" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-UNZIPPER_SCAN_INTERVAL" data-env="UNZIPPER_SCAN_INTERVAL" min="2" max="3600" step="0.5" placeholder="默认 10"></div>
+      <div class="field"><label for="f-MAX_HISTORY">下载完成记录保留（条）<button type="button" class="hq" data-help="MAX_HISTORY" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-MAX_HISTORY" data-env="MAX_HISTORY" min="100" max="100000" placeholder="默认 5000"></div>
+      <div class="field"><label for="f-MOVER_MAX_HISTORY">搬运记录保留（条）<button type="button" class="hq" data-help="MOVER_MAX_HISTORY" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-MOVER_MAX_HISTORY" data-env="MOVER_MAX_HISTORY" min="50" max="100000" placeholder="默认 500"></div>
+      <div class="field"><label for="f-HISTORY_JOB_KEEP_DAYS">历史下载任务保留（天）<button type="button" class="hq" data-help="HISTORY_JOB_KEEP_DAYS" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-HISTORY_JOB_KEEP_DAYS" data-env="HISTORY_JOB_KEEP_DAYS" min="1" max="3650" placeholder="默认 30"></div>
+      <div class="field"><label for="f-LOG_KEEP_DAYS">日志保留（天）<button type="button" class="hq" data-help="LOG_KEEP_DAYS" aria-label="说明" aria-expanded="false">?</button></label><input type="number" id="f-LOG_KEEP_DAYS" data-env="LOG_KEEP_DAYS" min="1" max="3650" placeholder="默认 14"></div>
+      <div class="save-row"><button class="btn primary" data-save="unzip">保存</button><span class="msg" data-save-msg="unzip"></span></div>
+    </details>
+
+    <div class="card" data-card="notify"><h3>出事通知<button type="button" class="hq" data-help="notify" aria-label="说明" aria-expanded="false">?</button></h3>
+      <div class="field"><label for="f-ADMIN_CHAT_ID">聊天 ID</label><input type="text" id="f-ADMIN_CHAT_ID" data-env="ADMIN_CHAT_ID" inputmode="numeric" placeholder="不填 = 不发通知"></div>
+      <div class="field"><label for="f-BOT_TOKEN">机器人 Token</label><input type="password" id="f-BOT_TOKEN" data-env="BOT_TOKEN" autocomplete="off" placeholder="（未设置）">
+        <div class="eff" id="eff-BOT_TOKEN"></div></div>
+      <div class="save-row"><button class="btn primary" data-save="notify">保存</button>
+        <button class="btn" id="notify-test">发一条测试</button>
+        <button class="btn danger" id="notify-clear-token" style="display:none">清除 Token</button>
+        <span class="msg" data-save-msg="notify"></span></div>
+    </div>
+
+    <div class="card" data-card="sec"><h3>安全</h3>
+      <div class="field"><label>访问密码<button type="button" class="hq" data-help="API_KEY" aria-label="说明" aria-expanded="false">?</button></label><span id="apikey-state" class="dim">读取中…</span></div>
+      <div class="field"><label for="f-MOVE_ALLOWED_ROOTS">搬运白名单（一行一个）<button type="button" class="hq" data-help="MOVE_ALLOWED_ROOTS" aria-label="说明" aria-expanded="false">?</button></label>
+        <textarea id="f-MOVE_ALLOWED_ROOTS" data-env="MOVE_ALLOWED_ROOTS" rows="3" placeholder="留空 = 只能搬到数据目录里"></textarea></div>
+      <div class="save-row"><button class="btn primary" data-save="sec">保存</button><span class="msg" data-save-msg="sec"></span></div>
+    </div>
+
+    <div class="card"><h3>解压密码库<button type="button" class="hq" data-help="passwords" aria-label="说明" aria-expanded="false">?</button> <span class="dim" id="pw-count"></span></h3>
       <div class="field">
         <input type="text" id="pw-input" placeholder="添加一个解压密码（解密时按顺序尝试）" style="flex:1">
         <button class="btn primary" id="pw-add-btn">添加</button>
@@ -337,6 +425,24 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 // ═══════════ 基础：代理请求 + API Key ═══════════
 function apiKey(){ return localStorage.getItem('hyden_api_key') || ''; }
 function setKey(k){ localStorage.setItem('hyden_api_key', k); }
+// 旧书签 / 链接里带的 ?key=：存进浏览器后从地址栏去掉，免得钥匙留在历史记录和截图里
+(function(){
+  try{
+    const u=new URL(location.href); const k=u.searchParams.get('key');
+    if(k){ setKey(k.trim()); u.searchParams.delete('key'); history.replaceState(null,'',u.pathname+u.search+u.hash); }
+  }catch(e){}
+})();
+// 没设钥匙、又不是在本机打开 → 黄色提醒（可关掉，记在这个浏览器里）
+function showNoKeyBanner(noKey){
+  const el=document.getElementById('nokey-banner'); if(!el) return;
+  const local=['localhost','127.0.0.1','[::1]','::1'].includes(location.hostname);
+  let hidden=false; try{ hidden=localStorage.getItem('hyden_nokey_dismissed')==='1'; }catch(e){}
+  el.style.display=(noKey===true && !local && !hidden)?'':'none';
+}
+function dismissNoKeyBanner(){
+  try{ localStorage.setItem('hyden_nokey_dismissed','1'); }catch(e){}
+  showNoKeyBanner(false);
+}
 
 async function req(path, opts={}, retried){
   const headers = Object.assign({}, opts.headers||{});
@@ -441,6 +547,7 @@ async function pollOverview(){
   try{
     const r=await req('/api/overview'); const o=await r.json(); lastO=o;
     setBrand(o.brand_name);
+    showNoKeyBanner(o.no_api_key);
     // 下载
     const dd=o.downloader;
     if(!dd.online){ setStage('dl','off','离线'); renderThroughput(0,false); }
@@ -909,27 +1016,115 @@ function renderInbox(){
   });
 }
 
-// ═══════════ 设置（同 /api/config，与旧设置页一致） ═══════════
-const SK=['DATA_ROOT','DOWNLOAD_DIR','WATCH_PATH','OUTPUT_PATH','MAX_TOTAL_CONNECTIONS',
-  'MAX_CONCURRENT_TASKS','MOVER_MAX_CONCURRENT','DOWNLOAD_TIMEOUT','AUTO_MOVE','LOG_LEVEL','RESTART_MODE'];
-const PATHK=['DATA_ROOT','DOWNLOAD_DIR','WATCH_PATH','OUTPUT_PATH'];
-let sInit={};
+// ═══════════ 设置（/api/config，#1803：每张卡片各自保存，留空 = 回到默认） ═══════════
+// 字段都写在 HTML 里：<input data-env="KEY">，所在卡片 data-card="xx"，保存按钮 data-save="xx"。
+let sInit={}, cfgCache=null;
+function envVal(el){
+  const k=el.dataset.env, v=(el.value||'').trim();
+  if(k==='MOVE_ALLOWED_ROOTS') return v.split(/[,\\n]/).map(x=>x.trim()).filter(Boolean).join(',');
+  return v;
+}
 async function loadSettings(){
-  const r=await req('/api/config'); if(!r.ok) return; const cfg=await r.json();
+  loadSwitches(); loadServices(); loadPasswords(); loadAutostart(); loadBranding();
+  const r=await req('/api/config'); if(!r.ok) return; const cfg=await r.json(); cfgCache=cfg;
   document.getElementById('env-path').textContent=cfg.env_file;
   document.getElementById('docker-banner').className='banner'+(cfg.docker?' show':'');
   sInit={};
-  SK.forEach(k=>{ const el=document.getElementById('f-'+k); if(!el) return;
-    const v=(cfg.values&&cfg.values[k])||''; el.value=v; sInit[k]=v;
-    if(PATHK.includes(k)) el.disabled=!!cfg.docker; });
+  const pend=new Set(cfg.pending||[]);
+  document.querySelectorAll('[data-env]').forEach(el=>{
+    const k=el.dataset.env; let v=(cfg.values&&cfg.values[k])||'';
+    if(k==='MOVE_ALLOWED_ROOTS') v=v.split(',').filter(Boolean).join('\\n');
+    el.value=v; sInit[k]=envVal(el);
+    if(['DATA_ROOT','DOWNLOAD_DIR','WATCH_PATH','OUTPUT_PATH'].includes(k)) el.disabled=!!cfg.docker;
+    const lab=document.querySelector('label[for="f-'+k+'"]');
+    if(lab){ const old=lab.querySelector('.pend'); if(old) old.remove();
+      if(pend.has(k)) lab.insertAdjacentHTML('beforeend','<span class="pend" title="已保存，正在跑的服务还没用上">重启后生效</span>'); }
+  });
   ['DOWNLOAD_DIR','WATCH_PATH','OUTPUT_PATH'].forEach(k=>{
     const eff=document.getElementById('eff-'+k);
     if(eff&&cfg.effective_dirs) eff.textContent='当前生效：'+cfg.effective_dirs[k]; });
-  loadServices();
-  loadPasswords();
-  loadAutostart();
-  loadBranding();
+  const lim=cfg.limits||{};
+  if(lim.DOWNLOAD_TIMEOUT_MIN) document.getElementById('f-DOWNLOAD_TIMEOUT').min=lim.DOWNLOAD_TIMEOUT_MIN;
+  // 卡死自动重启只有 Docker 有（control 服务做的）
+  document.getElementById('f-AUTOHEAL').closest('.field').style.display=cfg.docker?'':'none';
+  document.querySelector('[data-save="svc"]').closest('.save-row').style.display=cfg.docker?'':'none';
+  // 机器人 Token 只写不读
+  const tokSet=!!(cfg.secrets_set&&cfg.secrets_set.BOT_TOKEN);
+  document.getElementById('f-BOT_TOKEN').placeholder=tokSet?'已设置（要换就填新的，不改就留空）':'（未设置）';
+  document.getElementById('eff-BOT_TOKEN').textContent=tokSet?'✓ 已设置。出于安全不在页面上显示。':'';
+  document.getElementById('notify-clear-token').style.display=tokSet?'':'none';
+  document.getElementById('apikey-state').innerHTML=cfg.api_key_set
+    ? '<span style="color:var(--grn)">✓ 已设置</span>'
+    : '<span style="color:var(--amb)">⚠️ 没设</span> <span class="dim">（只有本机能访问时可以不设）</span>';
 }
+async function saveCard(cid, extra){
+  const card=document.querySelector('[data-card="'+cid+'"]');
+  const msg=document.querySelector('[data-save-msg="'+cid+'"]');
+  const btn=document.querySelector('[data-save="'+cid+'"]');
+  const upd=Object.assign({}, extra||{});
+  card.querySelectorAll('[data-env]').forEach(el=>{
+    if(el.disabled || el.closest('.field').style.display==='none') return;
+    const k=el.dataset.env, v=envVal(el);
+    if(k==='BOT_TOKEN'){ if(v) upd[k]=v; return; }        // 留空 = 不改（清除走单独的按钮）
+    if(v!==(sInit[k]||'')) upd[k]=v;
+  });
+  if(!Object.keys(upd).length){ msg.textContent='没有改动'; msg.className='msg'; return; }
+  btn.disabled=true; msg.textContent='保存中…'; msg.className='msg';
+  try{
+    const r=await req('/api/config',{method:'POST',body:JSON.stringify(upd)});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ msg.textContent='✗ '+(d.error||('HTTP '+r.status)); msg.className='msg err'; return; }
+    let t='✓ 已保存';
+    if((d.applied_now||[]).length) t+='，已立即生效';
+    if(d.need_restart) t+='；其余重启后生效：<code>'+esc(d.restart_hint)+'</code>';
+    msg.innerHTML=t; msg.className='msg ok';
+    if(upd.BOT_TOKEN!==undefined) document.getElementById('f-BOT_TOKEN').value='';
+    await loadSettings();
+  }catch(e){ msg.textContent='✗ '+e; msg.className='msg err'; }
+  finally{ btn.disabled=false; }
+}
+document.querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>saveCard(b.dataset.save));
+document.getElementById('notify-clear-token').onclick=()=>{
+  if(confirm('清除机器人 Token？清除后只有下载器能用登录的账号代发通知。')) saveCard('notify',{BOT_TOKEN:''});
+};
+document.getElementById('notify-test').onclick=async()=>{
+  const msg=document.querySelector('[data-save-msg="notify"]');
+  msg.textContent='发送中…'; msg.className='msg';
+  try{
+    const r=await req('/api/notify/test',{method:'POST',body:JSON.stringify({
+      ADMIN_CHAT_ID:document.getElementById('f-ADMIN_CHAT_ID').value.trim(),
+      BOT_TOKEN:document.getElementById('f-BOT_TOKEN').value.trim()})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d.ok){ msg.textContent='✓ 已发出，去 Telegram 看看'; msg.className='msg ok'; }
+    else { msg.textContent='✗ '+(d.error||('HTTP '+r.status)); msg.className='msg err'; }
+  }catch(e){ msg.textContent='✗ '+e; msg.className='msg err'; }
+};
+
+// ── 暂停开关（设置页汇总五个；频道页那三个按钮照旧） ──
+const SWITCHES={
+  'sw-global':  {label:'全局暂停', mod:'dl', on:'/api/pause',        off:'/api/resume',        get:o=>o.downloader&&o.downloader.data&&o.downloader.data.paused},
+  'sw-exempt':  {label:'例外暂停', mod:'dl', on:'/api/exempt-pause', off:'/api/exempt-resume', get:o=>o.downloader&&o.downloader.data&&o.downloader.data.exempt_paused},
+  'sw-saved':   {label:'收藏暂停', mod:'dl', on:'/api/saved-pause',  off:'/api/saved-resume',  get:o=>o.downloader&&o.downloader.data&&o.downloader.data.saved_paused},
+  'sw-mover':   {label:'搬运暂停', mod:'mv', on:'/api/pause',        off:'/api/resume',        get:o=>o.mover&&o.mover.data&&o.mover.data.paused},
+  'sw-unzipper':{label:'解压暂停', mod:'uz', on:'/api/pause',        off:'/api/resume',        get:o=>o.unzipper&&o.unzipper.data&&o.unzipper.data.paused},
+};
+async function loadSwitches(){
+  const o=await req('/api/overview?slim=1').then(r=>r.ok?r.json():null).catch(()=>null);
+  Object.entries(SWITCHES).forEach(([id,sw])=>{
+    const b=document.getElementById(id); const mod=o&&o[{dl:'downloader',mv:'mover',uz:'unzipper'}[sw.mod]];
+    if(!mod||!mod.online||!mod.data){ b.textContent='离线'; b.disabled=true; b.dataset.on=''; b.classList.remove('primary'); return; }
+    b.disabled=false; setPauseBtn(id, '', !!sw.get(o)); b.textContent=(b.dataset.on==='1')?'⏸ 已暂停':'▶ 运行中';
+  });
+}
+Object.entries(SWITCHES).forEach(([id,sw])=>{
+  document.getElementById(id).onclick=async()=>{
+    const b=document.getElementById(id); if(b.disabled) return;
+    const on=b.dataset.on==='1'; b.disabled=true;
+    const r=await px(sw.mod, on?sw.off:sw.on, {method:'POST'}).catch(()=>({ok:false}));
+    toast(r.ok?`${sw.label}已${on?'关闭':'开启'}`:'操作失败', !r.ok);
+    loadSwitches();
+  };
+});
 
 // ── 页面标题（/api/branding） ──
 async function loadBranding(){
@@ -1071,23 +1266,6 @@ async function delPassword(p){
 }
 document.getElementById('pw-add-btn').onclick=addPassword;
 document.getElementById('pw-input').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();addPassword();} });
-document.getElementById('save-btn').onclick=async()=>{
-  const btn=document.getElementById('save-btn'), msg=document.getElementById('save-msg');
-  const upd={};
-  SK.forEach(k=>{ const el=document.getElementById('f-'+k); if(!el||el.disabled) return;
-    if(el.value.trim()!==(sInit[k]||'').trim()) upd[k]=el.value.trim(); });
-  if(!Object.keys(upd).length){ msg.textContent='没有改动'; msg.className='msg'; return; }
-  btn.disabled=true; msg.textContent='保存中…'; msg.className='msg';
-  try{
-    const r=await req('/api/config',{method:'POST',body:JSON.stringify(upd)});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok){ msg.textContent='✗ '+(d.error||('HTTP '+r.status)); msg.className='msg err'; }
-    else{ msg.innerHTML='✓ 已保存（'+d.saved.join(', ')+'），重启后生效：<code>'+d.restart_hint+'</code>';
-      msg.className='msg ok'; d.saved.forEach(k=>sInit[k]=upd[k]); }
-  }catch(e){ msg.textContent='✗ '+e; msg.className='msg err'; }
-  finally{ btn.disabled=false; }
-};
-
 // ═══════════ 列表工具栏事件（搜索/排序/筛选 → 前端即时过滤，不重复请求） ═══════════
 document.getElementById('home-dl-search').oninput=()=>{ if(lastO) renderHome(lastO); };
 document.getElementById('recent-search').oninput=renderRecent;
@@ -1105,6 +1283,67 @@ document.getElementById('task-sort').onchange=renderTaskList;
 document.getElementById('inbox-search').oninput=renderInbox;
 document.getElementById('inbox-kind').onchange=renderInbox;
 document.getElementById('pw-search').oninput=renderPasswords;
+
+// ═══════════ 「?」说明卡片（#1803） ═══════════
+// 文字从 /api/help 取（dashboard/help_texts.py），HTML 里的「?」按钮只带一个 data-help 属性（值是表里的键）。
+// 电脑：鼠标移上去显示、移开收起；手机：点一下显示、点别处收起；点「?」会钉住，Esc 收起。
+let HELP={};
+req('/api/help').then(r=>r.ok?r.json():{}).then(d=>{HELP=d||{};}).catch(()=>{});
+const helpPop=document.createElement('div'); helpPop.id='help-pop'; helpPop.setAttribute('role','tooltip');
+document.body.appendChild(helpPop);
+let helpFor=null, helpPinned=false, helpHideT=null;
+const CAN_HOVER=window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+function helpHTML(k){
+  const h=HELP[k]; if(!h) return '<div class="hp-what">（说明还没加载出来，稍后再试）</div>';
+  const L=h.kind==='num'?['调大','调小']:['打开','关闭'];
+  let x='<div class="hp-what">'+esc(h.what)+'</div>';
+  if(h.up) x+='<div class="hp-row"><b>'+L[0]+'</b>'+esc(h.up)+'</div>';
+  if(h.down) x+='<div class="hp-row"><b>'+L[1]+'</b>'+esc(h.down)+'</div>';
+  x+='<div class="hp-row"><b>生效</b>'+esc(h.when)+'</div>';
+  if(h.warn) x+='<div class="hp-warn">⚠️ '+esc(h.warn)+'</div>';
+  return x;
+}
+function placeHelp(btn){
+  const r=btn.getBoundingClientRect(), vw=document.documentElement.clientWidth;
+  const w=Math.min(320, vw-24); helpPop.style.width=w+'px';
+  const left=Math.max(12, Math.min(r.left+r.width/2-w/2, vw-w-12));
+  helpPop.style.left=(left+window.scrollX)+'px';
+  const h=helpPop.offsetHeight;
+  const below=r.bottom+8, above=r.top-8-h;
+  const top=(below+h>window.innerHeight && above>0) ? above : below;
+  helpPop.style.top=(top+window.scrollY)+'px';
+}
+function showHelp(btn, pin){
+  clearTimeout(helpHideT);
+  if(helpFor && helpFor!==btn) helpFor.setAttribute('aria-expanded','false');
+  helpFor=btn; helpPinned=!!pin;
+  helpPop.innerHTML=helpHTML(btn.dataset.help); helpPop.classList.add('show');
+  btn.setAttribute('aria-expanded','true'); placeHelp(btn);
+}
+function hideHelp(){
+  clearTimeout(helpHideT);
+  if(helpFor) helpFor.setAttribute('aria-expanded','false');
+  helpPop.classList.remove('show'); helpFor=null; helpPinned=false;
+}
+document.addEventListener('click', e=>{
+  const b=e.target.closest('.hq');
+  if(b){ e.preventDefault(); e.stopPropagation();
+    if(helpFor===b && helpPinned) hideHelp(); else showHelp(b, true); return; }
+  if(helpFor && !e.target.closest('#help-pop')) hideHelp();
+}, true);
+if(CAN_HOVER){
+  document.addEventListener('mouseover', e=>{
+    const b=e.target.closest('.hq');
+    if(b && !helpPinned) showHelp(b, false);
+    else if(e.target.closest('#help-pop')) clearTimeout(helpHideT);
+  });
+  document.addEventListener('mouseout', e=>{
+    if(helpPinned) return;
+    if(e.target.closest('.hq') || e.target.closest('#help-pop')) helpHideT=setTimeout(hideHelp, 200);
+  });
+}
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') hideHelp(); });
+window.addEventListener('resize', ()=>{ if(helpFor) placeHelp(helpFor); });
 
 // ═══════════ 启动 ═══════════
 pollOverview();
